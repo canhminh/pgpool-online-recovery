@@ -2,9 +2,9 @@
 
 ##This is meanst to be run on the slave, with the masters ip as the passed variable. ($1)
 sourcehost="$1"
-datadir=/var/lib/postgresql/9.1/main
-archivedir=/var/lib/postgresql/9.1/archive
-archivedirdest=/var/lib/postgresql/9.1/archive
+datadir=/home/postgres/data
+archivedir=/home/postgres/archive
+archivedirdest=/home/postgres/archive
 
 #Usage
 if [ "$1" = "" ] || [ "$1" = "-h" ] || [ "$1" = "-help" ] || [ "$1" = "--help" ];
@@ -42,7 +42,7 @@ CheckIfPostgresIsRunningOnRemoteHost () {
 
 #Check if the supposed master is actually a master
 CheckIfMasterIsActuallyAMaster () {
-    ismaster="$(ssh postgres@"$1" 'if [ -f /var/lib/postgresql/9.1/main/recovery.done ]; then echo "postgres_is_a_master_instance"; else echo "postgres_is_not_master"; fi;')"
+    ismaster="$(ssh postgres@"$1" 'if [ -f /home/postgres/data/recovery.done ]; then echo "postgres_is_a_master_instance"; else echo "postgres_is_not_master"; fi;')"
 
     if [[ "$ismaster" = "postgres_is_not_master" ]]
     then
@@ -73,7 +73,7 @@ PrepareLocalServer () {
     fi 
 
     #Remove old WAL logs
-    rm /var/lib/postgresql/9.1/archive/*
+    rm /home/postgres/archive/*
 }
 
 
@@ -92,7 +92,7 @@ CheckForRecoveryConfig () {
 #Before doing PutMasterIntoBackupMode clean up archive logs (IE rm or mv /var/lib/postgresql/9.1/archive/*). They are not needed since we are effectivly createing a new base backup and then synching it.
 PutMasterIntoBackupMode () {
     echo "[INFO] Putting postgres master '$1' in backup mode."
-    ssh postgres@"$1" "rm /var/lib/postgresql/9.1/archive/*"
+    ssh postgres@"$1" "rm /home/postgres/archive/*"
     ssh postgres@"$1" "psql -c \"SELECT pg_start_backup('Streaming Replication', true)\" postgres"
 }
 
@@ -128,7 +128,7 @@ StopBackupModeAndArchiveIntoWallLog () {
 #stop postgres and copy transactions made during the last two rsync's
 StopPostgreSqlAndFinishRsync () {
     echo "[INFO] Stopping master node.."
-    ssh postgres@"$1" "/etc/init.d/postgresql stop"
+    ssh postgres@"$1" "/etc/init.d/postgresql-9.1 stop"
     echo "[INFO] Transfering xlog files from master... "
     rsync -av --delete --progress -e ssh "$sourcehost":"$datadir"/pg_xlog/ "$datadir"/pg_xlog/ > /dev/null
     if [ $? == 0 ]
@@ -143,12 +143,12 @@ StopPostgreSqlAndFinishRsync () {
 #Start both Master and Slave
 StartLocalAndThenRemotePostGreSql () {
     echo "[INFO] Starting slave node.."
-    /etc/init.d/postgresql start
+    /etc/init.d/postgresql-9.1 start
     if ! killall -0 postgres; then echo '[ERROR] Slave not running !'; else echo "[OK] Slave started."; fi;
 
 
     echo "[INFO] Starting master node.."
-    ssh postgres@"$1" "/etc/init.d/postgresql start"
+    ssh postgres@"$1" "/etc/init.d/postgresql-9.1 start"
     
     status=$(ssh  postgres@$1 "if ! killall -0 postgres; then echo 'error'; else echo 'running'; fi;")
     if [ $status == "error" ]
