@@ -128,7 +128,7 @@ StopBackupModeAndArchiveIntoWallLog () {
 #stop postgres and copy transactions made during the last two rsync's
 StopPostgreSqlAndFinishRsync () {
     echo "[INFO] Stopping master node.."
-    ssh postgres@"$1" "/etc/init.d/postgresql-9.1 stop"
+    ssh root@"$1" "/etc/init.d/postgresql-9.1 stop"
     echo "[INFO] Transfering xlog files from master... "
     sudo -u postgres -H rsync -av --delete --progress -e ssh "$sourcehost":"$datadir"/pg_xlog/ "$datadir"/pg_xlog/ > /dev/null
     if [ $? == 0 ]
@@ -143,6 +143,7 @@ StopPostgreSqlAndFinishRsync () {
 #Start both Master and Slave
 StartLocalAndThenRemotePostGreSql () {
     echo "[INFO] Starting slave node.."
+	sudo -u postgres -H cp /home/postgres/data/postgresql.conf.slave /home/postgres/data/postgresql.conf
     /etc/init.d/postgresql-9.1 start
     if ! killall -0 postmaster; then echo '[ERROR] Slave not running !'; else echo "[OK] Slave started."; fi;
 
