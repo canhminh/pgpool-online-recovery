@@ -14,16 +14,16 @@ exit 0
 fi
 #This script must be run as postgres user
 Whoami () {
-    if [[ $(whoami) != "postgres" ]]
+    if [[ $(whoami) != "root" ]]
     then
-        echo "[INFO] This script must be run as postgres user !"
+        echo "[INFO] This script must be run as root user !"
 	exit 1
     fi
 }
 
 #Check if postgres server is running on remote host
 CheckIfPostgresIsRunningOnRemoteHost () {
-	isrunning="$(ssh postgres@"$1" 'if killall -0 postgres; then echo "postgres_running"; else echo "postgress_not_running"; fi;')"
+	isrunning="$(ssh postgres@"$1" 'if killall -0 postmaster; then echo "postgres_running"; else echo "postgress_not_running"; fi;')"
 
 	if [[ "$isrunning" = "postgress_not_running" ]]
 	then
@@ -65,11 +65,11 @@ PrepareLocalServer () {
             rm /tmp/trigger_file
     fi
     echo "[INFO] Stopping slave node.."
-    bash /etc/init.d/postgresql stop
+    bash /etc/init.d/postgresql-9.1 stop
 
     if [[ -f "$datadir/recovery.done" ]];
     then
-            mv "$datadir"/recovery.done "$datadir"/recovery.conf
+            sudo -u postgres -H mv "$datadir"/recovery.done "$datadir"/recovery.conf
     fi 
 
     #Remove old WAL logs
@@ -99,7 +99,7 @@ PutMasterIntoBackupMode () {
 #rsync master's data to local postgres dir
 RsyncWhileLive () {
     echo "[INFO] Transfering data from master '$1' ..."
-    rsync -C -av --delete --progress -e ssh --exclude server.key --exclude server.crt --exclude recovery.conf --exclude recovery.done --exclude postmaster.pid --exclude pg_xlog/ "$1":"$datadir"/ "$datadir"/ > /dev/null
+    sudo -u postgres -H rsync -C -av --delete --progress -e ssh --exclude server.key --exclude server.crt --exclude recovery.conf --exclude recovery.done --exclude postmaster.pid --exclude pg_xlog/ "$1":"$datadir"/ "$datadir"/ > /dev/null
     if [ $? == 0 ]
     then
         echo "[OK] Transfert completed.";
@@ -115,7 +115,7 @@ StopBackupModeAndArchiveIntoWallLog () {
     echo "[INFO] Disable backup mode from master '$1'."
     ssh postgres@"$1" "psql -c \"SELECT pg_stop_backup()\" postgres"
     echo "[INFO] Synchronising master/slave archive directory..."
-    rsync -C -a --progress -e ssh "$1":"$archivedir"/ "$archivedirdest"/ > /dev/null
+    sudo -u postgres -H rsync -C -a --progress -e ssh "$1":"$archivedir"/ "$archivedirdest"/ > /dev/null
     if [ $? == 0 ]
     then
         echo "[OK] Sync achieved.";
@@ -130,7 +130,7 @@ StopPostgreSqlAndFinishRsync () {
     echo "[INFO] Stopping master node.."
     ssh postgres@"$1" "/etc/init.d/postgresql-9.1 stop"
     echo "[INFO] Transfering xlog files from master... "
-    rsync -av --delete --progress -e ssh "$sourcehost":"$datadir"/pg_xlog/ "$datadir"/pg_xlog/ > /dev/null
+    sudo -u postgres -H rsync -av --delete --progress -e ssh "$sourcehost":"$datadir"/pg_xlog/ "$datadir"/pg_xlog/ > /dev/null
     if [ $? == 0 ]
     then
         echo "[OK] Transfert completed.";
@@ -144,13 +144,13 @@ StopPostgreSqlAndFinishRsync () {
 StartLocalAndThenRemotePostGreSql () {
     echo "[INFO] Starting slave node.."
     /etc/init.d/postgresql-9.1 start
-    if ! killall -0 postgres; then echo '[ERROR] Slave not running !'; else echo "[OK] Slave started."; fi;
+    if ! killall -0 postmaster; then echo '[ERROR] Slave not running !'; else echo "[OK] Slave started."; fi;
 
 
     echo "[INFO] Starting master node.."
-    ssh postgres@"$1" "/etc/init.d/postgresql-9.1 start"
+    ssh root@"$1" "/etc/init.d/postgresql-9.1 start"
     
-    status=$(ssh  postgres@$1 "if ! killall -0 postgres; then echo 'error'; else echo 'running'; fi;")
+    status=$(ssh  postgres@$1 "if ! killall -0 postmaster; then echo 'error'; else echo 'running'; fi;")
     if [ $status == "error" ]
     then
         echo "[ERROR] Master not running !";
