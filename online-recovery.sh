@@ -1,13 +1,13 @@
 #!/bin/bash
 
 #Postgres data directory
-postgres_datadir='/var/lib/postgresql/9.1/main'
+postgres_datadir='/home/postgres/data'
 #Postgres configuration directory
-postgres_configdir='/etc/postgresql/9.1/main'
+postgres_configdir='/home/postgres/data'
 #Postgres user ssh key
-postgres_user_key='/var/lib/postgresql/.ssh/id_rsa'
+postgres_user_key='/home/postgres/.ssh/id_rsa'
 #Pgpool configuration directory
-pgpool_configdir='/etc/pgpool2'
+pgpool_configdir='/etc/pgpool'
 
 if [ -f '/tmp/postgres_master' ]
 then
@@ -49,7 +49,7 @@ ReattachDegeneratedSlave () {
     #Reboot slave node
     echo "[INFO] Slave node '$current_slave_name' is down. Performing postgres server reboot..."
     #Remote postgres reboot via ssh
-    ssh -i $postgres_user_key postgres@$current_slave_name "/etc/init.d/postgresql restart"
+    ssh -i $postgres_user_key postgres@$current_slave_name "/etc/init.d/postgresql-9.1 restart"
     #Test if postgres is running
     status=$(ssh -i $postgres_user_key postgres@$current_slave_name "if ! killall -0 postgres; then echo 'error'; else echo 'running'; fi;")
     if [ $status == "error" ]
@@ -85,7 +85,7 @@ SwitchOldMasterToSlave () {
     new_slave_id=$current_master_id
     #Setup old master config to slave mode
     echo "[INFO] Setting up configuration for the new slave node '$new_slave_name'..."
-    ssh -i $postgres_user_key postgres@$new_slave_name "/etc/init.d/postgresql stop"
+    ssh -i $postgres_user_key postgres@$new_slave_name "/etc/init.d/postgresql-9.1 stop"
     ssh -i $postgres_user_key postgres@$new_slave_name "cp -p $postgres_configdir/postgresql.conf.slave $postgres_configdir/postgresql.conf"
     ssh -i $postgres_user_key postgres@$new_slave_name  "[ -f $postgres_datadir/recovery.done ] && mv $postgres_datadir/recovery.done $postgres_datadir/recovery.conf"
     # Switch slave to new master
@@ -94,7 +94,7 @@ SwitchOldMasterToSlave () {
     ssh -i $postgres_user_key postgres@$new_master_name "[ -f $postgres_datadir/recovery.conf ] && mv $postgres_datadir/recovery.conf $postgres_datadir/recovery.done"
     ssh -i $postgres_user_key postgres@$new_master_name "cp -p $postgres_configdir/postgresql.conf.master $postgres_configdir/postgresql.conf"
     echo "[INFO] Restarting new master..."
-    ssh -i $postgres_user_key postgres@$new_master_name "/etc/init.d/postgresql restart"
+    ssh -i $postgres_user_key postgres@$new_master_name "/etc/init.d/postgresql-9.1 restart"
     status=$(ssh -i $postgres_user_key postgres@$new_master_name "if ! killall -0 postgres; then echo 'error'; else echo 'running'; fi;")
     if [ $status == "error" ]
     then
