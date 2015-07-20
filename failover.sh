@@ -10,6 +10,6 @@ if [ $failed_node != $old_primary ]; then
 fi
 # Create the trigger file if primary node goes down.
 echo "[INFO] Master node is down. Performing failover..."
-ssh -i /var/lib/postgresql/.ssh/id_rsa postgres@$new_master "touch $trigger_file"
+ssh -i /home/postgres/.ssh/id_rsa postgres@$new_master "touch $trigger_file"
 
 exit 0;
