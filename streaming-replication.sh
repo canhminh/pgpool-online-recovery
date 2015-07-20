@@ -43,13 +43,19 @@ CheckIfPostgresIsRunningOnRemoteHost () {
 #Check if the supposed master is actually a master
 CheckIfMasterIsActuallyAMaster () {
     ismaster="$(ssh postgres@"$1" 'if [ -f /home/postgres/data/recovery.done ]; then echo "postgres_is_a_master_instance"; else echo "postgres_is_not_master"; fi;')"
+    ismaster2="$(ssh postgres@"$1" 'if [ -f /tmp/trigger_file ]; then echo "postgres_is_a_master_instance"; else echo "postgres_is_not_master"; fi;')"
 
-    if [[ "$ismaster" = "postgres_is_not_master" ]]
+    if [[ "$ismaster" = "postgres_is_not_master" && "$ismaster2" = "postgres_is_not_master" ]]
     then
         echo "[ERROR] Postgres is already running as a slave. Exiting..";
         exit 1
-    elif [[ "$ismaster" = "postgres_is_a_master_instance" ]]
+    elif [[ "$ismaster" = "postgres_is_a_master_instance" || "$ismaster2" = "postgres_is_a_master_instance" ]]
     then
+		if [[ "$ismaster2" = "postgres_is_a_master_instance" ]]
+		then
+			ssh root@"$1" "rm /tmp/trigger_file"
+			ssh postgres@"$1" "mv /home/postgres/data/recovery.conf /home/postgres/data/recovery.done"
+		fi
         echo "[INFO] Postgres is running as master (probably)";
     elif echo "[ERROR] Unexpected response. Exiting.."
     then
@@ -99,7 +105,7 @@ PutMasterIntoBackupMode () {
 #rsync master's data to local postgres dir
 RsyncWhileLive () {
     echo "[INFO] Transfering data from master '$1' ..."
-    sudo -u postgres -H rsync -C -av --delete --progress -e ssh --exclude server.key --exclude server.crt --exclude recovery.conf --exclude recovery.done --exclude postmaster.pid --exclude pg_xlog/ "$1":"$datadir"/ "$datadir"/ > /dev/null
+    sudo -u postgres -H rsync -C -av --delete --progress -e ssh --exclude server.key --exclude server.crt --exclude recovery.conf --exclude postgresql.conf.master --exclude postgresql.conf.slave  --exclude postgresql.conf --exclude recovery.done --exclude postmaster.pid --exclude pg_xlog/ "$1":"$datadir"/ "$datadir"/ > /dev/null
     if [ $? == 0 ]
     then
         echo "[OK] Transfert completed.";
